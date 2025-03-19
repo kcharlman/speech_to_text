@@ -4,73 +4,133 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Speech to Text</title>
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+    <link rel="stylesheet" href="bootstrap.css">
+    <link rel="stylesheet" href="app.css">
+
+    <style>
+        #pauseBtn, #resumeBtn {
+            background-color: var(--plt4-tr2);
+        }
+
+        #pauseBtn.active, #resumeBtn.active {
+            background-color: var(--plt4);
+        }
+
+        #stopBtn {
+            background-color: var(--plt1-tr2);
+        }
+
+        #stopBtn.active {
+            background-color: var(--plt1);
+        }
+    </style>
 </head>
 <body>
-    <h2>Upload Audio for Speech-to-Text</h2>
-    <input type="file" id="audioFile" accept="audio/*">
-    <select id="language">
-        <option value="en-US">English</option>
-        <option value="ms-MY">Bahasa Malaysia</option>
-    </select>
-    <button onclick="convertAudioToText()">Convert</button>
-    <p id="output"></p>
+    <div class="pd-20 bs-bb">
+        <div class="fs-20 fw-bold">Real-time Speech to Text</div>
+        <div style="" class="clr-grey1 mg-b-5 fstyle-italic fs-10">Kenny Charlman</div>
+        <div class="fs-12 mg-t-20">
+            <div class="mg-b-20">
+                <div style="" class="clr-grey1 mg-b-5">Choose your language:</div>
+                <select class="input" id="language">
+                    <option value="en-US">English</option>
+                    <option value="ms-MY">Bahasa Malaysia</option>
+                </select>
+            </div>
+            
+            <div class="mg-b-10">
+                <button class="bg-plt1 clr-white5 bdr-none pd-5 br-5" id="startBtn">Start</button>
+                <button class="clr-white5 bdr-none pd-5 br-5" id="pauseBtn" disabled>Pause</button>
+                <button class="clr-white5 bdr-none pd-5 br-5" id="resumeBtn" disabled>Resume</button>
+                <button class="clr-white5 bdr-none pd-5 br-5" id="stopBtn" disabled>Stop</button>
+                <button class="bg-plt5 clr-white5 bdr-none pd-5 br-5" id="downloadBtn">Download</button>
+            </div>
+            
+            <div>
+                <textarea class="input w-100p" id="output" rows="10" cols="50" placeholder="Speech will be converted to text here..."></textarea>
+            </div>
+        </div>
+    </div>
     
     <script>
-        async function convertAudioToText() {
-            const fileInput = document.getElementById('audioFile');
-            const output = document.getElementById('output');
-            const language = document.getElementById('language').value;
-            
-            if (!fileInput.files.length) {
-                alert("Please upload an audio file.");
-                return;
-            }
-
-            const file = fileInput.files[0];
-            const reader = new FileReader();
-            reader.readAsArrayBuffer(file);
-
-            reader.onload = async function(event) {
-                const { createFFmpeg, fetchFile } = FFmpeg;
-                const ffmpeg = createFFmpeg({ log: true });
-
-                await ffmpeg.load();
-                await ffmpeg.FS('writeFile', 'input.wav', new Uint8Array(event.target.result));
-                await ffmpeg.run('-i', 'input.wav', '-ac', '1', '-ar', '16000', 'output.wav');
-                
-                const outputData = ffmpeg.FS('readFile', 'output.wav');
-                const audioBlob = new Blob([outputData.buffer], { type: 'audio/wav' });
-                const audioURL = URL.createObjectURL(audioBlob);
-                
-                recognizeAudio(audioURL, language);
-            };
-        }
+        let recognition;
+        let isPaused = false;
+        let transcript = "";
         
-        function recognizeAudio(audioURL, language) {
-            const recognizer = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            recognizer.lang = language;
-            recognizer.continuous = false;
-            recognizer.interimResults = false;
-            
-            const audio = new Audio(audioURL);
-            const output = document.getElementById('output');
-            
-            recognizer.onresult = function(event) {
-                let transcript = '';
-                for (let i = 0; i < event.results.length; i++) {
-                    transcript += event.results[i][0].transcript + ' ';
+        const startBtn = document.getElementById("startBtn");
+        const pauseBtn = document.getElementById("pauseBtn");
+        const resumeBtn = document.getElementById("resumeBtn");
+        const stopBtn = document.getElementById("stopBtn");
+        const downloadBtn = document.getElementById("downloadBtn");
+        const output = document.getElementById("output");
+        const languageSelect = document.getElementById("language");
+
+        startBtn.addEventListener("click", () => {
+            const language = languageSelect.value;
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = language;
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.onresult = (event) => {
+                if (!isPaused) {
+                    transcript = "";
+                    for (let i = 0; i < event.results.length; i++) {
+                        transcript += event.results[i][0].transcript + " ";
+                    }
+                    output.value = transcript;
                 }
-                output.innerText = transcript;
             };
-            
-            recognizer.onerror = function(event) {
-                output.innerText = "Error: " + event.error;
-            };
-            
-            audio.onended = () => recognizer.start();
-            audio.play();
-        }
+
+            recognition.start();
+            startBtn.disabled = true;
+            pauseBtn.disabled = false;
+            stopBtn.disabled = false;
+
+            pauseBtn.classList.add('active');
+            stopBtn.classList.add('active');
+        });
+
+        pauseBtn.addEventListener("click", () => {
+            isPaused = true;
+            pauseBtn.disabled = true;
+            resumeBtn.disabled = false;
+
+            pauseBtn.classList.remove('active');
+            resumeBtn.classList.add('active');
+        });
+
+        resumeBtn.addEventListener("click", () => {
+            isPaused = false;
+            resumeBtn.disabled = true;
+            pauseBtn.disabled = false;
+
+            resumeBtn.classList.remove('active');
+            pauseBtn.classList.add('active');
+        });
+
+        stopBtn.addEventListener("click", () => {
+            recognition.stop();
+            startBtn.disabled = false;
+            pauseBtn.disabled = true;
+            resumeBtn.disabled = true;
+            stopBtn.disabled = true;
+
+            pauseBtn.classList.remove('active');
+            resumeBtn.classList.remove('active');
+            stopBtn.classList.remove('active');
+        });
+
+        downloadBtn.addEventListener("click", () => {
+            const text = output.value;
+            const blob = new Blob([text], { type: "text/plain" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "speech_to_text.txt";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
     </script>
 </body>
 </html>
