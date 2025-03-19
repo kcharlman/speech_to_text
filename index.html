@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech to Text</title>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+</head>
+<body>
+    <h2>Upload Audio for Speech-to-Text</h2>
+    <input type="file" id="audioFile" accept="audio/*">
+    <select id="language">
+        <option value="en-US">English</option>
+        <option value="ms-MY">Bahasa Malaysia</option>
+    </select>
+    <button onclick="convertAudioToText()">Convert</button>
+    <p id="output"></p>
+    
+    <script>
+        async function convertAudioToText() {
+            const fileInput = document.getElementById('audioFile');
+            const output = document.getElementById('output');
+            const language = document.getElementById('language').value;
+            
+            if (!fileInput.files.length) {
+                alert("Please upload an audio file.");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.readAsArrayBuffer(file);
+
+            reader.onload = async function(event) {
+                const { createFFmpeg, fetchFile } = FFmpeg;
+                const ffmpeg = createFFmpeg({ log: true });
+
+                await ffmpeg.load();
+                await ffmpeg.FS('writeFile', 'input.wav', new Uint8Array(event.target.result));
+                await ffmpeg.run('-i', 'input.wav', '-ac', '1', '-ar', '16000', 'output.wav');
+                
+                const outputData = ffmpeg.FS('readFile', 'output.wav');
+                const audioBlob = new Blob([outputData.buffer], { type: 'audio/wav' });
+                const audioURL = URL.createObjectURL(audioBlob);
+                
+                recognizeAudio(audioURL, language);
+            };
+        }
+        
+        function recognizeAudio(audioURL, language) {
+            const recognizer = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognizer.lang = language;
+            recognizer.continuous = false;
+            recognizer.interimResults = false;
+            
+            const audio = new Audio(audioURL);
+            const output = document.getElementById('output');
+            
+            recognizer.onresult = function(event) {
+                let transcript = '';
+                for (let i = 0; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript + ' ';
+                }
+                output.innerText = transcript;
+            };
+            
+            recognizer.onerror = function(event) {
+                output.innerText = "Error: " + event.error;
+            };
+            
+            audio.onended = () => recognizer.start();
+            audio.play();
+        }
+    </script>
+</body>
+</html>
