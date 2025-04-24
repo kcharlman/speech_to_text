@@ -9,54 +9,52 @@
 
     <style>
         #pauseBtn, #resumeBtn {
-            background-color: var(--plt4-tr2);
+            background-color: var(--white2);
         }
 
         #pauseBtn.active, #resumeBtn.active {
-            background-color: var(--plt4);
+            background-color: var(--white4);
+            color: #000;
         }
 
         #stopBtn {
-            background-color: var(--plt1-tr2);
+            background-color: var(--white2);
         }
 
-        #stopBtn.active {
-            background-color: var(--plt1);
+        #startBtn, #stopBtn.active {
+            background-color: var(--white4);
+            color: #000;
         }
     </style>
 </head>
-<body>
+<body style="background-color: #222222">
     <div class="pd-20 bs-bb">
-        <div class="fs-20 fw-bold">Real-time Speech to Text</div>
-        <div style="" class="clr-grey1 mg-b-5 fstyle-italic fs-10">Kenny Charlman</div>
+        <div class="fs-20 fw-bold clr-white5">Real-time Speech to Text</div>
+        <div style="" class="clr-grey1 mg-b-5 fstyle-italic fs-10">by Kenny Charlman</div>
         <div class="fs-12 mg-t-20">
             <div class="mg-b-20">
                 <div style="" class="clr-grey1 mg-b-5">Choose your language:</div>
-                <select class="input" id="language">
+                <select class="input cursor-pointer" id="language" style="background-color: #444444; color:white">
                     <option value="en-US">English</option>
                     <option value="ms-MY">Bahasa Malaysia</option>
                 </select>
             </div>
             
             <div class="mg-b-10">
-                <button class="bg-plt1 clr-white5 bdr-none pd-5 br-5" id="startBtn">Start</button>
-                <button class="clr-white5 bdr-none pd-5 br-5" id="pauseBtn" disabled>Pause</button>
-                <button class="clr-white5 bdr-none pd-5 br-5" id="resumeBtn" disabled>Resume</button>
-                <button class="clr-white5 bdr-none pd-5 br-5" id="stopBtn" disabled>Stop</button>
-                <button class="bg-plt5 clr-white5 bdr-none pd-5 br-5" id="downloadBtn">Download</button>
+                <button class="clr-black bdr-none pd-10 br-5" id="startBtn">Start</button>
+                <button class="clr-grey2 bdr-none pd-10 br-5" id="pauseBtn" disabled>Pause</button>
+                <button class="clr-grey2 bdr-none pd-10 br-5" id="resumeBtn" disabled>Resume</button>
+                <button class="clr-grey2 bdr-none pd-10 br-5" id="stopBtn" disabled>Stop</button>
+                <button class="bg-plt4 clr-white5 bdr-none pd-10 br-5" id="downloadBtn">Download</button>
             </div>
             
             <div>
-                <textarea class="input w-100p" id="output" rows="10" cols="50" placeholder="Speech will be converted to text here..."></textarea>
+                <textarea class="input w-800" style="background-color: #444444; color:white; max-width:100%;" id="output" rows="10" cols="50" placeholder="Speech will be converted to text here..."></textarea>
             </div>
         </div>
     </div>
     
     <script>
-        let recognition;
-        let isPaused = false;
-        let transcript = "";
-        
         const startBtn = document.getElementById("startBtn");
         const pauseBtn = document.getElementById("pauseBtn");
         const resumeBtn = document.getElementById("resumeBtn");
@@ -65,6 +63,11 @@
         const output = document.getElementById("output");
         const languageSelect = document.getElementById("language");
 
+        let recognition;
+        let isPaused = false;
+        let isStoppedManually = false;
+        let transcript = "";
+        
         startBtn.addEventListener("click", () => {
             const language = languageSelect.value;
             recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
@@ -73,16 +76,25 @@
             recognition.interimResults = true;
 
             recognition.onresult = (event) => {
-                if (!isPaused) {
-                    transcript = "";
-                    for (let i = 0; i < event.results.length; i++) {
-                        transcript += event.results[i][0].transcript + " ";
+                let newTranscript = ""; // Temporary storage for finalized results
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        newTranscript += event.results[i][0].transcript + " "; // Add finalized results
                     }
-                    output.value = transcript;
+                }
+                transcript += newTranscript; // Append only finalized text to permanent transcript
+                output.value = transcript; // Update the text area with finalized text
+            };
+
+
+            recognition.onend = () => {
+                if (!isStoppedManually && !isPaused) {
+                    recognition.start(); // Restart if not paused or stopped manually
                 }
             };
 
             recognition.start();
+            isStoppedManually = false;
             startBtn.disabled = true;
             pauseBtn.disabled = false;
             stopBtn.disabled = false;
@@ -93,6 +105,7 @@
 
         pauseBtn.addEventListener("click", () => {
             isPaused = true;
+            recognition.stop(); // Stop listening
             pauseBtn.disabled = true;
             resumeBtn.disabled = false;
 
@@ -102,6 +115,30 @@
 
         resumeBtn.addEventListener("click", () => {
             isPaused = false;
+            const language = languageSelect.value; // Retain selected language
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)(); // Create a new instance
+            recognition.lang = language;
+            recognition.continuous = true;
+            recognition.interimResults = false; // Disable interim results when resuming
+
+            recognition.onresult = (event) => {
+                let newTranscript = ""; // Temporary storage for finalized results
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        newTranscript += event.results[i][0].transcript + " "; // Add finalized results only
+                    }
+                }
+                transcript += newTranscript; // Append to existing transcript
+                output.value = transcript; // Update the text area
+            };
+
+            recognition.onend = () => {
+                if (!isStoppedManually && !isPaused) {
+                    recognition.start(); // Restart recognition
+                }
+            };
+
+            recognition.start(); // Start fresh recognition
             resumeBtn.disabled = true;
             pauseBtn.disabled = false;
 
@@ -110,6 +147,7 @@
         });
 
         stopBtn.addEventListener("click", () => {
+            isStoppedManually = true;
             recognition.stop();
             startBtn.disabled = false;
             pauseBtn.disabled = true;
@@ -131,6 +169,7 @@
             a.click();
             document.body.removeChild(a);
         });
+    
     </script>
 </body>
 </html>
