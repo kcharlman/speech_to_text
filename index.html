@@ -66,41 +66,51 @@
         let recognition;
         let isPaused = false;
         let isStoppedManually = false;
-        let transcript = "";
+        let transcript = ""; // Store the cumulative final transcript
         
         startBtn.addEventListener("click", () => {
-            const language = languageSelect.value;
-            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            recognition.lang = language;
-            recognition.continuous = true;
-            recognition.interimResults = true;
-
-            recognition.onresult = (event) => {
-                let newTranscript = ""; // Temporary storage for finalized results
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    if (event.results[i].isFinal) {
-                        newTranscript += event.results[i][0].transcript + " "; // Add finalized results
-                    }
-                }
-                transcript += newTranscript; // Append only finalized text to permanent transcript
-                output.value = transcript; // Update the text area with finalized text
-            };
-
-
-            recognition.onend = () => {
-                if (!isStoppedManually && !isPaused) {
-                    recognition.start(); // Restart if not paused or stopped manually
-                }
-            };
-
-            recognition.start();
-            isStoppedManually = false;
-            startBtn.disabled = true;
-            pauseBtn.disabled = false;
-            stopBtn.disabled = false;
-
-            pauseBtn.classList.add('active');
-            stopBtn.classList.add('active');
+          const language = languageSelect.value;
+          recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+          recognition.lang = language;
+          recognition.continuous = true;
+          recognition.interimResults = true;
+        
+          recognition.onresult = (event) => {
+            // Combine all final results from the event into one string
+            let currentFinalTranscript = "";
+            for (let i = 0; i < event.results.length; i++) {
+              if (event.results[i].isFinal) {
+                currentFinalTranscript += event.results[i][0].transcript + " ";
+              }
+            }
+        
+            // Check if the current final transcript already contains what we have
+            if (currentFinalTranscript.startsWith(transcript)) {
+              // Append only the new portion
+              let newWords = currentFinalTranscript.substring(transcript.length);
+              transcript += newWords;
+            } else {
+              // Fallback: if something unusual happens, replace the transcript entirely
+              transcript = currentFinalTranscript;
+            }
+        
+            output.value = transcript; // Update the text area with the updated transcript
+          };
+        
+          recognition.onend = () => {
+            if (!isStoppedManually && !isPaused) {
+              recognition.start(); // Restart if not paused or stopped manually
+            }
+          };
+        
+          recognition.start();
+          isStoppedManually = false;
+          startBtn.disabled = true;
+          pauseBtn.disabled = false;
+          stopBtn.disabled = false;
+        
+          pauseBtn.classList.add('active');
+          stopBtn.classList.add('active');
         });
 
         pauseBtn.addEventListener("click", () => {
